@@ -259,3 +259,28 @@ class MyJobsView(generics.ListAPIView):
 
     def get_queryset(self):
         return Job.objects.filter(posted_by=self.request.user)
+
+@login_required
+def edit_job(request, job_id):
+    from .models import Job
+    job = get_object_or_404(Job, id=job_id, posted_by=request.user)
+    if request.method == 'POST':
+        job.title       = request.POST.get('title', job.title).strip()
+        job.city        = request.POST.get('city', job.city).strip()
+        job.area        = request.POST.get('area', '').strip()
+        job.pay_amount  = request.POST.get('pay_amount', job.pay_amount)
+        job.pay_type    = request.POST.get('pay_type', job.pay_type)
+        job.description = request.POST.get('description', '').strip()
+        job.save()
+        messages.success(request, 'Job updated!')
+    return redirect('recruiter_dashboard')
+
+
+@login_required
+def toggle_job_status(request, job_id):
+    from .models import Job
+    job = get_object_or_404(Job, id=job_id, posted_by=request.user)
+    if request.method == 'POST':
+        job.status = 'closed' if job.status == 'open' else 'open'
+        job.save()
+    return redirect('recruiter_dashboard')

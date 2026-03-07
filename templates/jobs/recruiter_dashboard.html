@@ -1,16 +1,223 @@
 {% extends 'base.html' %}
-{% block title %}My Jobs{% endblock %}
+{% block title %}My Jobs — LocalServe{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-hero { background:var(--dark); padding:2.5rem 5%; background-image:radial-gradient(ellipse at 80% 50%, rgba(244,81,30,0.15) 0%, transparent 60%); }
+    .page-hero h1 { font-family:'Playfair Display',serif; font-size:2rem; color:white; margin-bottom:0.3rem; }
+    .page-hero p  { color:rgba(255,255,255,0.45); font-size:0.9rem; }
+    .hero-actions { display:flex; gap:1rem; margin-top:1.5rem; flex-wrap:wrap; }
+    .btn-post { background:var(--orange); color:white; padding:0.8rem 1.8rem; border-radius:10px; text-decoration:none; font-weight:700; font-size:0.95rem; transition:all 0.2s; }
+    .btn-post:hover { background:#e8440f; transform:translateY(-2px); }
+
+    .stats-bar { display:flex; gap:1rem; padding:1.5rem 5%; flex-wrap:wrap; }
+    .stat-card { background:white; border:1px solid var(--border); border-radius:12px; padding:1rem 1.5rem; flex:1; min-width:120px; text-align:center; }
+    .stat-num  { font-size:1.8rem; font-weight:800; color:var(--orange); font-family:'Playfair Display',serif; }
+    .stat-label { font-size:0.78rem; color:var(--muted); margin-top:0.2rem; }
+
+    .jobs-list { padding:0 5% 3rem; display:grid; gap:1rem; }
+
+    .job-card { background:white; border-radius:14px; border:1px solid var(--border); overflow:hidden; transition:box-shadow 0.2s, transform 0.2s; }
+    .job-card:hover { box-shadow:0 6px 20px rgba(0,0,0,0.08); transform:translateY(-2px); }
+
+    .job-card-top { padding:1.2rem 1.5rem; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+    .job-info { flex:1; }
+    .job-cat  { display:inline-block; background:#FBE9E7; color:var(--orange); border-radius:20px; padding:0.15rem 0.7rem; font-size:0.72rem; font-weight:700; margin-bottom:0.5rem; text-transform:uppercase; }
+    .job-title { font-size:1.05rem; font-weight:700; color:var(--dark); margin-bottom:0.4rem; }
+    .job-meta  { font-size:0.82rem; color:var(--muted); display:flex; gap:1rem; flex-wrap:wrap; }
+    .job-pay   { font-weight:700; color:#2E7D32; }
+
+    .job-card-footer { padding:0.8rem 1.5rem; background:#FAFAFA; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:0.8rem; flex-wrap:wrap; }
+    .footer-left  { display:flex; align-items:center; gap:0.8rem; }
+    .footer-right { display:flex; gap:0.6rem; }
+
+    .applicant-badge { background:#E8F5E9; color:#2E7D32; border-radius:20px; padding:0.3rem 0.8rem; font-size:0.8rem; font-weight:700; text-decoration:none; transition:all 0.2s; }
+    .applicant-badge:hover { background:#C8E6C9; }
+    .applicant-badge.zero { background:#f5f5f5; color:var(--muted); }
+
+    .btn-view     { padding:0.45rem 0.9rem; background:var(--cream); color:var(--dark); border:1.5px solid var(--border); border-radius:8px; font-size:0.82rem; font-weight:600; text-decoration:none; transition:all 0.2s; }
+    .btn-view:hover { border-color:var(--dark); }
+    .btn-edit     { padding:0.45rem 0.9rem; background:white; color:var(--dark); border:1.5px solid var(--border); border-radius:8px; font-size:0.82rem; font-weight:600; text-decoration:none; transition:all 0.2s; }
+    .btn-edit:hover { border-color:var(--orange); color:var(--orange); }
+    .btn-delete   { padding:0.45rem 0.9rem; background:white; color:#c0392b; border:1.5px solid #f5c6cb; border-radius:8px; font-size:0.82rem; font-weight:600; cursor:pointer; font-family:inherit; transition:all 0.2s; }
+    .btn-delete:hover { background:#fff5f5; }
+
+    .status-toggle { display:flex; align-items:center; gap:0.5rem; }
+    .toggle-label  { font-size:0.78rem; color:var(--muted); }
+    .toggle-switch { position:relative; display:inline-block; width:36px; height:20px; }
+    .toggle-switch input { opacity:0; width:0; height:0; }
+    .toggle-slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#ccc; border-radius:20px; transition:0.3s; }
+    .toggle-slider:before { position:absolute; content:""; height:14px; width:14px; left:3px; bottom:3px; background:white; border-radius:50%; transition:0.3s; }
+    input:checked + .toggle-slider { background:var(--green); }
+    input:checked + .toggle-slider:before { transform:translateX(16px); }
+
+    .empty-state { text-align:center; padding:4rem 2rem; color:var(--muted); }
+    .empty-state .icon { font-size:3rem; margin-bottom:1rem; }
+    .empty-state h3 { color:var(--dark); margin-bottom:0.5rem; }
+
+    /* Edit modal */
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; padding:1rem; }
+    .modal-overlay.open { display:flex; }
+    .modal { background:white; border-radius:16px; padding:2rem; width:100%; max-width:540px; max-height:90vh; overflow-y:auto; }
+    .modal h3 { font-family:'Playfair Display',serif; font-size:1.4rem; color:var(--dark); margin-bottom:1.5rem; }
+    .modal-footer { display:flex; gap:0.8rem; justify-content:flex-end; margin-top:1.5rem; }
+    .btn-cancel { padding:0.7rem 1.5rem; background:var(--cream); color:var(--muted); border:1px solid var(--border); border-radius:8px; cursor:pointer; font-family:inherit; font-weight:600; }
+    .btn-save   { padding:0.7rem 1.5rem; background:var(--orange); color:white; border:none; border-radius:8px; cursor:pointer; font-family:inherit; font-weight:700; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container">
-    <h2 style="margin-bottom:1rem">My Posted Jobs</h2>
-    <a href="{% url 'post_job' %}" class="btn btn-primary" style="margin-bottom:1.5rem">+ Post New Job</a>
+<div class="page-hero">
+    <h1>My Posted Jobs 💼</h1>
+    <p>Manage your job listings and applicants</p>
+    <div class="hero-actions">
+        <a href="{% url 'post_job' %}" class="btn-post">+ Post New Job</a>
+    </div>
+</div>
+
+<!-- Stats bar -->
+<div class="stats-bar">
+    <div class="stat-card">
+        <div class="stat-num">{{ jobs|length }}</div>
+        <div class="stat-label">Total Jobs</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">{{ open_count }}</div>
+        <div class="stat-label">Open Jobs</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">{{ total_applications }}</div>
+        <div class="stat-label">Total Applications</div>
+    </div>
+</div>
+
+<div class="jobs-list">
     {% for job in jobs %}
-        <div class="card" style="margin-bottom:1rem">
-            <strong>{{ job.title }}</strong> — {{ job.city }}
+    <div class="job-card">
+        <!-- Clickable top → job detail -->
+        <a href="{% url 'job_detail' job.id %}" class="job-card-top" style="text-decoration:none;color:inherit;display:flex">
+            <div class="job-info">
+                <span class="job-cat">{{ job.get_category_display }}</span>
+                <div class="job-title">{{ job.title }}</div>
+                <div class="job-meta">
+                    <span>📍 {% if job.area %}{{ job.area }}, {% endif %}{{ job.city }}</span>
+                    <span class="job-pay">₹{{ job.pay_amount }}/{{ job.get_pay_type_display }}</span>
+                    <span>📅 {{ job.created_at|timesince }} ago</span>
+                </div>
+            </div>
             <span class="badge badge-{{ job.status }}">{{ job.status }}</span>
+        </a>
+
+        <div class="job-card-footer">
+            <div class="footer-left">
+                <!-- Applicants count -->
+                <a href="{% url 'job_applicants' job.id %}"
+                   class="applicant-badge {% if job.application_count == 0 %}zero{% endif %}">
+                    👥 {{ job.application_count }} Applicant{{ job.application_count|pluralize }}
+                </a>
+
+                <!-- Open/Close toggle -->
+                <form method="POST" action="{% url 'toggle_job_status' job.id %}" style="display:inline">
+                    {% csrf_token %}
+                    <div class="status-toggle">
+                        <span class="toggle-label">{{ job.status|title }}</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" {% if job.status == 'open' %}checked{% endif %}
+                                   onchange="this.form.submit()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </form>
+            </div>
+
+            <div class="footer-right">
+                <a href="{% url 'job_detail' job.id %}" class="btn-view">View</a>
+                <button class="btn-edit" onclick="openEdit({{ job.id }}, '{{ job.title|escapejs }}', '{{ job.city|escapejs }}', '{{ job.area|default:''|escapejs }}', '{{ job.pay_amount }}', '{{ job.pay_type }}', '{{ job.description|default:''|escapejs }}')">✏️ Edit</button>
+                <form method="POST" action="{% url 'delete_job' job.id %}" style="display:inline"
+                      onsubmit="return confirm('Delete {{ job.title|escapejs }}?')">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-delete">🗑</button>
+                </form>
+            </div>
         </div>
+    </div>
     {% empty %}
-        <p>No jobs posted yet.</p>
+    <div class="empty-state">
+        <div class="icon">📭</div>
+        <h3>No jobs posted yet</h3>
+        <p>Post your first job and start receiving applications!</p>
+        <a href="{% url 'post_job' %}"
+           style="display:inline-block;margin-top:1.5rem;padding:0.8rem 2rem;background:var(--orange);color:white;border-radius:10px;text-decoration:none;font-weight:700">
+            Post First Job →
+        </a>
+    </div>
     {% endfor %}
 </div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal">
+        <h3>✏️ Edit Job</h3>
+        <form method="POST" id="editForm" action="">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Job Title</label>
+                <input type="text" name="title" id="edit_title" required>
+            </div>
+            <div class="form-group">
+                <label>City</label>
+                <input type="text" name="city" id="edit_city" required>
+            </div>
+            <div class="form-group">
+                <label>Area / Locality</label>
+                <input type="text" name="area" id="edit_area" placeholder="Optional">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+                <div class="form-group">
+                    <label>Pay Amount (₹)</label>
+                    <input type="number" name="pay_amount" id="edit_pay" required>
+                </div>
+                <div class="form-group">
+                    <label>Pay Type</label>
+                    <select name="pay_type" id="edit_pay_type">
+                        <option value="day">Per Day</option>
+                        <option value="week">Per Week</option>
+                        <option value="month">Per Month</option>
+                        <option value="hour">Per Hour</option>
+                        <option value="job">Per Job</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea name="description" id="edit_desc" rows="3" placeholder="Job details..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-cancel" onclick="closeEdit()">Cancel</button>
+                <button type="submit" class="btn-save">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openEdit(id, title, city, area, pay, payType, desc) {
+    document.getElementById('editForm').action = '/jobs/recruiter/edit/' + id + '/'
+    document.getElementById('edit_title').value   = title
+    document.getElementById('edit_city').value    = city
+    document.getElementById('edit_area').value    = area
+    document.getElementById('edit_pay').value     = pay
+    document.getElementById('edit_pay_type').value = payType
+    document.getElementById('edit_desc').value    = desc
+    document.getElementById('editModal').classList.add('open')
+}
+function closeEdit() {
+    document.getElementById('editModal').classList.remove('open')
+}
+document.getElementById('editModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEdit()
+})
+</script>
 {% endblock %}

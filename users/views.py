@@ -1,11 +1,13 @@
-from django.shortcuts import get_object_or_404, render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth import login, logout, authenticate
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required
-from .models import User
-from django.core.files.storage import default_storage
-from .otp_utils import generate_otp, send_otp_sms, is_otp_valid
+from .models import User, Notification
+from .otp_utils import (
+    generate_otp, send_otp_sms, send_otp_email,
+    send_password_reset_email, is_otp_valid
+)
 
 
 def redirect_by_role(user):
@@ -14,6 +16,7 @@ def redirect_by_role(user):
     return redirect('seeker_dashboard')
 
 
+# ── LOGIN ─────────────────────────────────────────────────
 def login_view(request):
     if request.user.is_authenticated:
         return redirect_by_role(request.user)
@@ -31,15 +34,15 @@ def login_view(request):
         # Try phone
         if identifier.isdigit():
             try:
-                u = User.objects.get(phone=identifier)
+                u    = User.objects.get(phone=identifier)
                 user = authenticate(request, username=u.phone, password=password)
             except User.DoesNotExist:
                 pass
 
         # Try username
-        if user is None and not identifier.isdigit():
+        if user is None and not identifier.isdigit() and '@' not in identifier:
             try:
-                u = User.objects.get(username=identifier)
+                u    = User.objects.get(username=identifier)
                 user = authenticate(request, username=u.phone, password=password)
             except User.DoesNotExist:
                 pass
@@ -47,7 +50,7 @@ def login_view(request):
         # Try email
         if user is None and '@' in identifier:
             try:
-                u = User.objects.get(email=identifier)
+                u    = User.objects.get(email=identifier)
                 user = authenticate(request, username=u.phone, password=password)
             except User.DoesNotExist:
                 pass
@@ -63,6 +66,7 @@ def login_view(request):
     return render(request, 'users/login.html')
 
 
+# ── SIGNUP ────────────────────────────────────────────────
 def signup_view(request):
     if request.user.is_authenticated:
         return redirect_by_role(request.user)
@@ -73,56 +77,98 @@ def send_otp_view(request):
     if request.method != 'POST':
         return redirect('signup')
 
-    phone  = request.POST.get('phone', '').strip()
+    method = request.POST.get('method', 'phone')  # 'phone' or 'email'
     intent = request.POST.get('intent', 'seeker')
 
-    if not phone or len(phone) != 10 or not phone.isdigit():
-        messages.error(request, 'Enter a valid 10-digit mobile number.')
-        return render(request, 'users/signup.html', {'phone': phone, 'intent': intent})
+    if method == 'email':
+        email = request.POST.get('email', '').strip().lower()
 
-    # Get or create user — allow re-signup if no password set yet
-    user, created = User.objects.get_or_create(phone=phone)
+        if not email or '@' not in email:
+            messages.error(request, 'Enter a valid email address.')
+            return render(request, 'users/signup.html', {'method': method, 'intent': intent})
 
-    # If user already has a password they are registered — send to login
-    if not created and user.has_usable_password():
-        messages.error(request, 'This number is already registered. Please login.')
-        return redirect('login')
+        # Check already registered with usable password
+        existing = User.objects.filter(email=email).first()
+        if existing and existing.has_usable_password():
+            messages.error(request, 'This email is already registered. Please login.')
+            return redirect('login')
 
-    otp = generate_otp()
-    user.otp            = otp
-    user.otp_created_at = timezone.now()
-    user.save()
+        # Get or create by email — use email as temp phone
+        user, _ = User.objects.get_or_create(email=email, defaults={'phone': f'e_{email[:10]}'})
+        otp = generate_otp()
+        user.otp            = otp
+        user.otp_created_at = timezone.now()
+        user.save()
 
-    send_otp_sms(phone, otp)
+        success = send_otp_email(email, otp)
+        if not success:
+            messages.error(request, 'Failed to send OTP email. Please try again.')
+            return render(request, 'users/signup.html', {'method': method, 'intent': intent})
 
-    return render(request, 'users/signup.html', {
-        'otp_sent': True,
-        'phone':    phone,
-        'intent':   intent,
-    })
+        return render(request, 'users/signup.html', {
+            'otp_sent': True,
+            'method':   'email',
+            'contact':  email,
+            'intent':   intent,
+        })
+
+    else:
+        # Phone method
+        phone = request.POST.get('phone', '').strip()
+
+        if not phone or len(phone) != 10 or not phone.isdigit():
+            messages.error(request, 'Enter a valid 10-digit mobile number.')
+            return render(request, 'users/signup.html', {'method': method, 'intent': intent})
+
+        existing = User.objects.filter(phone=phone).first()
+        if existing and existing.has_usable_password():
+            messages.error(request, 'This number is already registered. Please login.')
+            return redirect('login')
+
+        user, _ = User.objects.get_or_create(phone=phone)
+        otp = generate_otp()
+        user.otp            = otp
+        user.otp_created_at = timezone.now()
+        user.save()
+
+        success = send_otp_sms(phone, otp)
+        if not success:
+            messages.error(request, 'Failed to send OTP. Please try again.')
+            return render(request, 'users/signup.html', {'method': method, 'intent': intent})
+
+        return render(request, 'users/signup.html', {
+            'otp_sent': True,
+            'method':   'phone',
+            'contact':  phone,
+            'intent':   intent,
+        })
 
 
 def verify_otp_view(request):
     if request.method != 'POST':
         return redirect('signup')
 
-    phone  = request.POST.get('phone', '').strip()
-    otp    = request.POST.get('otp', '').strip()
-    intent = request.POST.get('intent', 'seeker')
+    method  = request.POST.get('method', 'phone')
+    contact = request.POST.get('contact', '').strip()
+    otp     = request.POST.get('otp', '').strip()
+    intent  = request.POST.get('intent', 'seeker')
 
     try:
-        user = User.objects.get(phone=phone)
+        if method == 'email':
+            user = User.objects.get(email=contact)
+        else:
+            user = User.objects.get(phone=contact)
     except User.DoesNotExist:
-        messages.error(request, 'Phone not found. Please try again.')
+        messages.error(request, 'Not found. Please try again.')
         return redirect('signup')
 
     valid, message = is_otp_valid(user, otp)
-
     if not valid:
         messages.error(request, message)
         return render(request, 'users/signup.html', {
             'otp_sent': True,
-            'phone':    phone,
+            'method':   method,
+            'contact':  contact,
             'intent':   intent,
         })
 
@@ -135,6 +181,7 @@ def verify_otp_view(request):
     return redirect('complete_profile')
 
 
+# ── COMPLETE PROFILE ──────────────────────────────────────
 @login_required
 def complete_profile_view(request):
     if request.method == 'POST':
@@ -146,18 +193,27 @@ def complete_profile_view(request):
 
         username = request.POST.get('username', '').strip()
         email    = request.POST.get('email', '').strip()
+        phone    = request.POST.get('phone', '').strip()
 
-        # Check username uniqueness
         if username:
             if User.objects.filter(username=username).exclude(pk=user.pk).exists():
-                messages.error(request, 'Username already taken. Choose another.')
+                messages.error(request, 'Username already taken.')
                 return render(request, 'users/complete_profile.html', {
-                    'intent': request.session.get('intent', 'seeker')
+                    'intent': request.session.get('intent', 'seeker'), 'user': user
                 })
             user.username = username
 
-        if email:
+        if email and not user.email:
             user.email = email
+
+        if phone and user.phone.startswith('e_'):
+            # User signed up with email, now adding phone
+            if User.objects.filter(phone=phone).exclude(pk=user.pk).exists():
+                messages.error(request, 'This phone is already registered.')
+                return render(request, 'users/complete_profile.html', {
+                    'intent': request.session.get('intent', 'seeker'), 'user': user
+                })
+            user.phone = phone
 
         password  = request.POST.get('password', '').strip()
         password2 = request.POST.get('password2', '').strip()
@@ -165,39 +221,150 @@ def complete_profile_view(request):
         if not password or len(password) < 6:
             messages.error(request, 'Password must be at least 6 characters.')
             return render(request, 'users/complete_profile.html', {
-                'intent': request.session.get('intent', 'seeker')
+                'intent': request.session.get('intent', 'seeker'), 'user': user
             })
 
         if password != password2:
             messages.error(request, 'Passwords do not match.')
             return render(request, 'users/complete_profile.html', {
-                'intent': request.session.get('intent', 'seeker')
+                'intent': request.session.get('intent', 'seeker'), 'user': user
             })
 
         user.set_password(password)
         user.save()
         login(request, user)
         messages.success(request, f'Welcome to LocalServe, {user.full_name}! 🎉')
+        if user.email:
+            from .otp_utils import send_welcome_email
+            send_welcome_email(user.email, user.full_name)
         return redirect_by_role(user)
 
     intent = request.session.get('intent', 'seeker')
-    return render(request, 'users/complete_profile.html', {'intent': intent})
+    return render(request, 'users/complete_profile.html', {
+        'intent': intent,
+        'user':   request.user,
+    })
 
 
+# ── FORGOT PASSWORD ───────────────────────────────────────
+def forgot_password_view(request):
+    if request.method == 'POST':
+        identifier = request.POST.get('identifier', '').strip()
+
+        user = None
+        method = 'email'
+
+        if '@' in identifier:
+            user = User.objects.filter(email=identifier).first()
+            method = 'email'
+        elif identifier.isdigit():
+            user = User.objects.filter(phone=identifier).first()
+            method = 'phone'
+        else:
+            user = User.objects.filter(username=identifier).first()
+            method = 'email' if user and user.email else 'phone'
+
+        if not user:
+            messages.error(request, 'No account found with that details.')
+            return render(request, 'users/forgot_password.html')
+
+        otp = generate_otp()
+        user.otp            = otp
+        user.otp_created_at = timezone.now()
+        user.save()
+
+        if method == 'email' and user.email:
+            send_password_reset_email(user.email, otp)
+            contact = user.email
+        else:
+            send_otp_sms(user.phone, otp)
+            contact = user.phone
+
+        return render(request, 'users/forgot_password.html', {
+            'otp_sent': True,
+            'contact':  contact,
+            'method':   method,
+            'user_id':  user.id,
+        })
+
+    return render(request, 'users/forgot_password.html')
+
+
+def verify_reset_otp_view(request):
+    if request.method != 'POST':
+        return redirect('forgot_password')
+
+    user_id = request.POST.get('user_id')
+    otp     = request.POST.get('otp', '').strip()
+
+    user = get_object_or_404(User, id=user_id)
+    valid, message = is_otp_valid(user, otp)
+
+    if not valid:
+        messages.error(request, message)
+        return render(request, 'users/forgot_password.html', {
+            'otp_sent': True,
+            'user_id':  user_id,
+        })
+
+    # OTP valid — store in session for reset
+    request.session['reset_user_id'] = user.id
+    user.otp = None
+    user.otp_created_at = None
+    user.save()
+
+    return redirect('reset_password')
+
+
+def reset_password_view(request):
+    user_id = request.session.get('reset_user_id')
+    if not user_id:
+        messages.error(request, 'Session expired. Please try again.')
+        return redirect('forgot_password')
+
+    user = get_object_or_404(User, id=user_id)
+
+    if request.method == 'POST':
+        password  = request.POST.get('password', '').strip()
+        password2 = request.POST.get('password2', '').strip()
+
+        if not password or len(password) < 6:
+            messages.error(request, 'Password must be at least 6 characters.')
+            return render(request, 'users/reset_password.html')
+
+        if password != password2:
+            messages.error(request, 'Passwords do not match.')
+            return render(request, 'users/reset_password.html')
+
+        user.set_password(password)
+        user.save()
+        del request.session['reset_user_id']
+        login(request, user)
+        messages.success(request, 'Password reset successfully! Welcome back.')
+        if user.email:
+            from .otp_utils import send_password_reset_success_email
+            send_password_reset_success_email(user.email, user.full_name or "User")
+        return redirect_by_role(user)
+
+    return render(request, 'users/reset_password.html')
+
+
+# ── LOGOUT ────────────────────────────────────────────────
 def logout_view(request):
     logout(request)
     messages.info(request, 'Logged out successfully.')
     return redirect('login')
 
 
+# ── NOTIFICATIONS ─────────────────────────────────────────
 @login_required
 def notifications_view(request):
-    from .models import Notification
     notifs = Notification.objects.filter(recipient=request.user)
     notifs.filter(is_read=False).update(is_read=True)
     return render(request, 'users/notifications.html', {'notifications': notifs})
 
 
+# ── PROFILES ──────────────────────────────────────────────
 @login_required
 def my_profile_view(request):
     from applications.models import Application
@@ -208,7 +375,8 @@ def my_profile_view(request):
     ratings      = Rating.objects.filter(rated=profile_user).select_related('rater')
 
     if profile_user.role == 'seeker':
-        applications = Application.objects.filter(applicant=profile_user).select_related('job').order_by('-applied_at')
+        applications = Application.objects.filter(
+            applicant=profile_user).select_related('job').order_by('-applied_at')
         return render(request, 'users/profile.html', {
             'profile_user':      profile_user,
             'applications':      applications,
@@ -237,13 +405,13 @@ def view_profile(request, user_id):
     from applications.models import Application
     from jobs.models import Job
     from .models import Rating
-    from django.shortcuts import get_object_or_404
 
     profile_user = get_object_or_404(User, id=user_id)
     ratings      = Rating.objects.filter(rated=profile_user).select_related('rater')
 
     if profile_user.role == 'seeker':
-        applications = Application.objects.filter(applicant=profile_user).select_related('job').order_by('-applied_at')
+        applications = Application.objects.filter(
+            applicant=profile_user).select_related('job').order_by('-applied_at')
         return render(request, 'users/profile.html', {
             'profile_user':      profile_user,
             'applications':      applications,
@@ -265,6 +433,7 @@ def view_profile(request, user_id):
             'rating_count': ratings.count(),
             'is_own':       request.user == profile_user,
         })
+
 
 @login_required
 def edit_profile_view(request):
@@ -289,11 +458,9 @@ def edit_profile_view(request):
         if email:    user.email    = email
         if username: user.username = username
 
-        # Profile photo
         if 'photo' in request.FILES:
             user.photo = request.FILES['photo']
 
-        # Change password
         new_password  = request.POST.get('new_password', '').strip()
         new_password2 = request.POST.get('new_password2', '').strip()
         if new_password:
@@ -317,7 +484,7 @@ def edit_profile_view(request):
 def rate_user(request, user_id):
     from .models import Rating
     if request.method == 'POST':
-        rated = get_object_or_404(User, id=user_id)
+        rated  = get_object_or_404(User, id=user_id)
         stars  = int(request.POST.get('stars', 5))
         review = request.POST.get('review', '').strip()
         Rating.objects.update_or_create(

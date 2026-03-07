@@ -14,20 +14,25 @@
     .step-text strong { color:white; display:block; font-size:0.92rem; }
     .step-text span   { color:rgba(255,255,255,0.4); font-size:0.8rem; }
     .auth-right { display:flex; align-items:center; justify-content:center; padding:3rem 2rem; background:var(--cream); }
-    .auth-card { width:100%; max-width:400px; }
+    .auth-card { width:100%; max-width:420px; }
     .form-title { font-family:'Playfair Display',serif; font-size:1.8rem; color:var(--dark); margin-bottom:0.3rem; }
     .form-sub { color:var(--muted); font-size:0.88rem; margin-bottom:1.8rem; }
     .form-sub a { color:var(--orange); text-decoration:none; font-weight:600; }
     .submit-btn { width:100%; padding:0.9rem; background:var(--orange); color:white; border:none; border-radius:10px; font-size:1rem; font-weight:700; cursor:pointer; font-family:inherit; box-shadow:0 4px 12px rgba(244,81,30,0.3); transition:all 0.2s; }
     .submit-btn:hover { background:#e8440f; transform:translateY(-1px); }
-    .otp-input { font-size:1.8rem !important; letter-spacing:1rem !important; text-align:center !important; font-weight:700 !important; padding:1rem !important; }
+    .submit-btn:disabled { background:#ccc; box-shadow:none; transform:none; cursor:not-allowed; }
     .otp-box { background:white; border-radius:14px; padding:1.5rem; border:1px solid var(--border); text-align:center; margin-bottom:1.5rem; }
     .otp-box .icon { font-size:2.5rem; margin-bottom:0.5rem; }
     .otp-box h3 { font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--dark); margin-bottom:0.3rem; }
-    .otp-box p  { color:var(--muted); font-size:0.85rem; margin-bottom:0; }
+    .otp-box p  { color:var(--muted); font-size:0.85rem; margin:0; }
     .otp-box a  { color:var(--orange); text-decoration:none; font-weight:600; }
-    .resend-row { text-align:center; margin-top:0.8rem; font-size:0.83rem; color:var(--muted); }
+    .otp-input { font-size:1.8rem !important; letter-spacing:1rem !important; text-align:center !important; font-weight:700 !important; padding:1rem !important; }
+    .timer-row { display:flex; align-items:center; justify-content:center; gap:0.5rem; margin:0.8rem 0; font-size:0.85rem; color:var(--muted); }
+    .timer { font-weight:700; font-size:1rem; color:var(--green); font-variant-numeric:tabular-nums; }
+    .timer.urgent { color:#c0392b; }
+    .resend-row { text-align:center; margin-top:0.5rem; font-size:0.83rem; color:var(--muted); }
     .resend-btn { background:none; border:none; color:var(--orange); font-weight:600; cursor:pointer; font-family:inherit; font-size:0.83rem; }
+    .resend-btn:disabled { color:var(--muted); cursor:not-allowed; }
     @media(max-width:860px) { .auth-page { grid-template-columns:1fr; } .auth-left { display:none; } }
 </style>
 {% endblock %}
@@ -40,11 +45,11 @@
         <div class="steps-list">
             <div class="step-item">
                 <div class="step-num">1</div>
-                <div class="step-text"><strong>Enter Phone Number</strong><span>We'll send you a verification OTP</span></div>
+                <div class="step-text"><strong>Enter Your Email</strong><span>We'll send you a 6-digit OTP</span></div>
             </div>
             <div class="step-item">
                 <div class="step-num">2</div>
-                <div class="step-text"><strong>Verify OTP</strong><span>Enter the 6-digit code we send</span></div>
+                <div class="step-text"><strong>Verify OTP</strong><span>Check your inbox — valid 5 mins</span></div>
             </div>
             <div class="step-item">
                 <div class="step-num">3</div>
@@ -66,10 +71,10 @@
 
             <form method="POST" action="{% url 'send_otp' %}">
                 {% csrf_token %}
+                <input type="hidden" name="method" value="email">
                 <div class="form-group">
-                    <label>📱 Mobile Number</label>
-                    <input type="tel" name="phone" placeholder="10-digit number"
-                           maxlength="10" autofocus required>
+                    <label>✉️ Email Address</label>
+                    <input type="email" name="email" placeholder="you@example.com" autofocus required>
                 </div>
                 <div class="form-group">
                     <label>I want to</label>
@@ -78,36 +83,45 @@
                         <option value="recruiter">🏢 Hire People</option>
                     </select>
                 </div>
-                <button type="submit" class="submit-btn">Send OTP →</button>
+                <button type="submit" class="submit-btn">Send OTP to Email →</button>
             </form>
 
             {% else %}
             <div class="otp-box">
-                <div class="icon">📲</div>
-                <h3>Check your phone</h3>
-                <p>OTP sent to <strong>+91 {{ phone }}</strong><br>
-                <a href="{% url 'signup' %}">Wrong number? Change</a></p>
+                <div class="icon">📧</div>
+                <h3>Check your inbox!</h3>
+                <p>OTP sent to <strong>{{ contact }}</strong><br><br>
+                <a href="{% url 'signup' %}">Wrong email? Go back</a></p>
+            </div>
+
+            <!-- Countdown timer -->
+            <div class="timer-row">
+                ⏱ OTP expires in <span class="timer" id="otp-timer">5:00</span>
             </div>
 
             <form method="POST" action="{% url 'verify_otp' %}">
                 {% csrf_token %}
-                <input type="hidden" name="phone"  value="{{ phone }}">
-                <input type="hidden" name="intent" value="{{ intent|default:'seeker' }}">
+                <input type="hidden" name="method"  value="email">
+                <input type="hidden" name="contact" value="{{ contact }}">
+                <input type="hidden" name="intent"  value="{{ intent|default:'seeker' }}">
                 <div class="form-group">
                     <label>Enter 6-digit OTP</label>
-                    <input type="text" name="otp" class="otp-input"
+                    <input type="text" name="otp" id="otpInput" class="otp-input"
                            placeholder="000000" maxlength="6" autofocus required>
                 </div>
-                <button type="submit" class="submit-btn">Verify & Continue →</button>
+                <button type="submit" class="submit-btn" id="verifyBtn">Verify & Continue →</button>
             </form>
 
             <div class="resend-row">
-                Didn't receive it?
-                <form method="POST" action="{% url 'send_otp' %}" style="display:inline">
+                Didn't receive it? Check spam or
+                <form method="POST" action="{% url 'send_otp' %}" style="display:inline" id="resendForm">
                     {% csrf_token %}
-                    <input type="hidden" name="phone"  value="{{ phone }}">
+                    <input type="hidden" name="method" value="email">
+                    <input type="hidden" name="email"  value="{{ contact }}">
                     <input type="hidden" name="intent" value="{{ intent|default:'seeker' }}">
-                    <button type="submit" class="resend-btn">Resend OTP</button>
+                    <button type="submit" class="resend-btn" id="resendBtn" disabled>
+                        Resend OTP (wait <span id="resend-count">5:00</span>)
+                    </button>
                 </form>
             </div>
             {% endif %}
@@ -115,4 +129,47 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if otp_sent %}
+<script>
+let timeLeft = 300; // 5 minutes
+const timerEl     = document.getElementById('otp-timer');
+const resendCount = document.getElementById('resend-count');
+const verifyBtn   = document.getElementById('verifyBtn');
+const resendBtn   = document.getElementById('resendBtn');
+
+function fmt(s) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2,'0')}`;
+}
+
+function tick() {
+    timerEl.textContent     = fmt(timeLeft);
+    resendCount.textContent = fmt(timeLeft);
+
+    if (timeLeft <= 60) {
+        timerEl.classList.add('urgent');
+    }
+
+    if (timeLeft <= 0) {
+        clearInterval(interval);
+        timerEl.textContent = 'Expired ❌';
+        timerEl.classList.add('urgent');
+        verifyBtn.disabled  = true;
+        verifyBtn.textContent = 'OTP Expired — Resend to continue';
+        resendBtn.disabled  = false;
+        resendBtn.textContent = 'Resend OTP';
+        document.getElementById('otpInput').disabled = true;
+        return;
+    }
+    timeLeft--;
+}
+
+tick();
+const interval = setInterval(tick, 1000);
+</script>
+{% endif %}
 {% endblock %}
