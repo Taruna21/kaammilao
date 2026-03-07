@@ -1,15 +1,198 @@
 {% extends 'base.html' %}
-{% block title %}Find Jobs{% endblock %}
+{% block title %}Find Jobs — KaamMilao{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-hero {
+        background: var(--dark); padding: 2.5rem 5%;
+        background-image: radial-gradient(ellipse at 80% 50%, rgba(244,81,30,0.15) 0%, transparent 60%);
+    }
+    .page-hero h1 { font-family:'Playfair Display',serif; font-size:2rem; color:white; margin-bottom:0.3rem; }
+    .page-hero p  { color:rgba(255,255,255,0.45); font-size:0.9rem; }
+    .search-bar { display:flex; gap:0.8rem; flex-wrap:wrap; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:1rem; margin-top:1.5rem; }
+    .search-bar input, .search-bar select { flex:1; min-width:140px; margin-bottom:0; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:white; border-radius:8px; }
+    .search-bar input::placeholder { color:rgba(255,255,255,0.35); }
+    .search-bar select option { background:#1A1208; color:white; }
+    .search-bar button { background:var(--orange); color:white; border:none; padding:0.75rem 1.5rem; border-radius:8px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; }
+    .clear-btn { padding:0.75rem 1rem; background:rgba(255,255,255,0.1); color:white; border-radius:8px; text-decoration:none; font-size:0.85rem; display:flex; align-items:center; }
+
+    .tabs { display:flex; background:white; border-bottom:2px solid var(--border); padding:0 5%; }
+    .tab-btn { padding:1rem 1.5rem; border:none; background:transparent; font-family:inherit; font-size:0.9rem; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:all 0.2s; }
+    .tab-btn.active { color:var(--orange); border-bottom-color:var(--orange); }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+
+    .jobs-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:1.2rem; padding:2rem 5%; }
+
+    /* CLICKABLE JOB CARD */
+    .job-card {
+        background:white; border-radius:14px;
+        border:1px solid var(--border);
+        transition:transform 0.2s, box-shadow 0.2s;
+        display:flex; flex-direction:column;
+        text-decoration:none; color:inherit;
+        overflow:hidden;
+    }
+    .job-card:hover { transform:translateY(-4px); box-shadow:0 8px 24px rgba(244,81,30,0.12); border-color:var(--orange); }
+    .job-card-body { padding:1.5rem; flex:1; display:flex; flex-direction:column; }
+    .job-cat { display:inline-block; background:#FBE9E7; color:var(--orange); border-radius:20px; padding:0.2rem 0.8rem; font-size:0.72rem; font-weight:700; margin-bottom:0.8rem; text-transform:uppercase; letter-spacing:0.5px; }
+    .job-title { font-size:1.05rem; font-weight:700; color:var(--dark); margin-bottom:0.5rem; }
+    .job-meta  { font-size:0.82rem; color:var(--muted); margin-bottom:0.25rem; display:flex; align-items:center; gap:0.3rem; }
+    .job-pay   { font-size:1.15rem; font-weight:700; color:#2E7D32; margin:0.8rem 0 0.5rem; }
+    .job-desc  { font-size:0.82rem; color:var(--muted); line-height:1.5; flex:1; }
+
+    /* CARD FOOTER with buttons */
+    .job-card-footer {
+        padding:0.9rem 1.5rem;
+        border-top:1px solid var(--border);
+        display:flex; gap:0.6rem; align-items:center;
+        background:#FAFAFA;
+    }
+    .btn-apply {
+        flex:1; padding:0.6rem; background:var(--orange); color:white;
+        border:none; border-radius:8px; font-weight:700; font-size:0.85rem;
+        cursor:pointer; font-family:inherit; text-decoration:none;
+        text-align:center; transition:all 0.2s; display:block;
+    }
+    .btn-apply:hover { background:#e8440f; }
+    .btn-apply.applied { background:#E8F5E9; color:#2E7D32; border:1px solid #C8E6C9; cursor:default; }
+    .btn-apply.applied:hover { background:#E8F5E9; }
+    .btn-chat {
+        padding:0.6rem 0.9rem; background:white; color:var(--dark);
+        border:1.5px solid var(--border); border-radius:8px;
+        font-size:0.85rem; font-weight:600; text-decoration:none;
+        transition:all 0.2s; white-space:nowrap;
+    }
+    .btn-chat:hover { border-color:var(--orange); color:var(--orange); }
+    .btn-view {
+        padding:0.6rem 0.9rem; background:var(--cream); color:var(--muted);
+        border:1.5px solid var(--border); border-radius:8px;
+        font-size:0.85rem; font-weight:600; text-decoration:none;
+        transition:all 0.2s; white-space:nowrap;
+    }
+    .btn-view:hover { border-color:var(--dark); color:var(--dark); }
+
+    /* Applications */
+    .app-list { padding:1.5rem 5%; display:grid; gap:1rem; }
+    .app-card { background:white; border-radius:12px; padding:1.2rem 1.5rem; border:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:1rem; transition:box-shadow 0.2s; flex-wrap:wrap; }
+    .app-card:hover { box-shadow:0 4px 12px rgba(0,0,0,0.06); }
+    .app-title { font-weight:700; color:var(--dark); margin-bottom:0.25rem; }
+    .app-meta  { font-size:0.82rem; color:var(--muted); }
+
+    .empty-state { text-align:center; padding:4rem 2rem; color:var(--muted); grid-column:1/-1; }
+    .empty-state .icon { font-size:3rem; margin-bottom:1rem; }
+    .results-count { padding:1rem 5% 0; font-size:0.85rem; color:var(--muted); }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container">
-    <h2 style="margin-bottom:1rem">Available Jobs</h2>
-    {% for job in jobs %}
-        <div class="card" style="margin-bottom:1rem">
-            <strong>{{ job.title }}</strong> — {{ job.city }}
-            <a href="{% url 'apply_to_job' job.id %}" class="btn btn-primary btn-sm" style="margin-left:1rem">Apply</a>
+<div class="page-hero">
+    <h1>Find Work Near You 🔍</h1>
+    <p>Logged in as {{ user.full_name }} · {{ user.city|default:"All cities" }}</p>
+    <form method="GET" action="{% url 'seeker_dashboard' %}">
+        <div class="search-bar">
+            <input type="text"  name="city"     placeholder="📍 City"     value="{{ city }}">
+            <select name="category">
+                <option value="">All Categories</option>
+                {% for val, label in categories %}
+                    <option value="{{ val }}" {% if val == category %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Search</button>
+            {% if city or category %}
+                <a href="{% url 'seeker_dashboard' %}" class="clear-btn">✕ Clear</a>
+            {% endif %}
         </div>
-    {% empty %}
-        <p>No jobs found.</p>
-    {% endfor %}
+    </form>
 </div>
+
+<div class="tabs">
+    <button class="tab-btn active" onclick="showTab('jobs', this)">🗂 Browse Jobs ({{ jobs|length }})</button>
+    <button class="tab-btn"        onclick="showTab('applications', this)">📋 My Applications ({{ my_applications|length }})</button>
+</div>
+
+<!-- JOBS TAB -->
+<div class="tab-content active" id="tab-jobs">
+    {% if jobs %}
+        <p class="results-count">Showing {{ jobs|length }} job{{ jobs|length|pluralize }}</p>
+    {% endif %}
+    <div class="jobs-grid">
+        {% for job in jobs %}
+        <div class="job-card">
+
+            <!-- Clickable top section → job detail -->
+            <a href="{% url 'job_detail' job.id %}" class="job-card-body" style="text-decoration:none;color:inherit">
+                <span class="job-cat">{{ job.get_category_display }}</span>
+                <div class="job-title">{{ job.title }}</div>
+                <div class="job-meta">📍 {% if job.area %}{{ job.area }}, {% endif %}{{ job.city }}</div>
+                <div class="job-meta">👤 {{ job.posted_by.full_name|default:job.posted_by.phone }}</div>
+                {% if job.description %}
+                    <div class="job-desc">{{ job.description|truncatechars:80 }}</div>
+                {% endif %}
+                <div class="job-pay">₹{{ job.pay_amount }} / {{ job.get_pay_type_display }}</div>
+            </a>
+
+            <!-- Footer with action buttons -->
+            <div class="job-card-footer">
+                {% if job.id in applied_job_ids %}
+                    <span class="btn-apply applied">✅ Applied</span>
+                {% else %}
+                    <a href="{% url 'apply_to_job' job.id %}" class="btn-apply"
+                       onclick="event.stopPropagation()">Apply →</a>
+                {% endif %}
+                <a href="{% url 'job_detail' job.id %}" class="btn-view">Details</a>
+                {% if job.posted_by %}
+                <a href="{% url 'start_chat' job.posted_by.id %}" class="btn-chat"
+                   onclick="event.stopPropagation()">💬</a>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="empty-state">
+            <div class="icon">🔍</div>
+            <p>No jobs found. Try a different city or category.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- APPLICATIONS TAB -->
+<div class="tab-content" id="tab-applications">
+    <div class="app-list">
+        {% for app in my_applications %}
+        <div class="app-card">
+            <div>
+                <div class="app-title">{{ app.job.title }}</div>
+                <div class="app-meta">
+                    📍 {{ app.job.city }} &nbsp;·&nbsp;
+                    ₹{{ app.job.pay_amount }}/{{ app.job.get_pay_type_display }} &nbsp;·&nbsp;
+                    {{ app.applied_at|timesince }} ago
+                </div>
+            </div>
+            <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap">
+                <span class="badge badge-{{ app.status }}">{{ app.status }}</span>
+                {% if app.job.posted_by %}
+                <a href="{% url 'start_chat' app.job.posted_by.id %}" class="btn-chat">💬 Message</a>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="empty-state" style="grid-column:unset">
+            <div class="icon">📋</div>
+            <p>You haven't applied to any jobs yet.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showTab(tab, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'))
+    btn.classList.add('active')
+    document.getElementById('tab-' + tab).classList.add('active')
+}
+</script>
 {% endblock %}

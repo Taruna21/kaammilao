@@ -14,7 +14,6 @@ def redirect_by_role(user):
     return redirect('seeker_dashboard')
 
 
-# ── LOGIN ─────────────────────────────────────────────────
 def login_view(request):
     if request.user.is_authenticated:
         return redirect_by_role(request.user)
@@ -64,7 +63,6 @@ def login_view(request):
     return render(request, 'users/login.html')
 
 
-# ── SIGNUP ────────────────────────────────────────────────
 def signup_view(request):
     if request.user.is_authenticated:
         return redirect_by_role(request.user)
@@ -137,7 +135,6 @@ def verify_otp_view(request):
     return redirect('complete_profile')
 
 
-# ── COMPLETE PROFILE ──────────────────────────────────────
 @login_required
 def complete_profile_view(request):
     if request.method == 'POST':
@@ -187,14 +184,12 @@ def complete_profile_view(request):
     return render(request, 'users/complete_profile.html', {'intent': intent})
 
 
-# ── LOGOUT ────────────────────────────────────────────────
 def logout_view(request):
     logout(request)
     messages.info(request, 'Logged out successfully.')
     return redirect('login')
 
 
-# ── NOTIFICATIONS ─────────────────────────────────────────
 @login_required
 def notifications_view(request):
     from .models import Notification

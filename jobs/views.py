@@ -80,9 +80,9 @@ def apply_to_job(request, job_id):
             applicant_city  = city,
             cover_note      = cover_note,
         )
-        # 🔔 Notify recruiter
+        # Notify recruiter
         notify_new_application(job, app)
-        messages.success(request, f'✅ Applied to "{job.title}" successfully!')
+        messages.success(request, f'Applied to "{job.title}" successfully!')
         return redirect('seeker_dashboard')
 
     # GET — show the apply form
@@ -99,7 +99,7 @@ def apply_to_job(request, job_id):
 def my_applications(request):
     apps = Application.objects.filter(
         applicant=request.user
-    ).select_related('job').order_by('-applied_at')
+    ).select_related('job', 'job__posted_by').order_by('-applied_at')
     return render(request, 'jobs/my_applications.html', {'applications': apps})
 
 

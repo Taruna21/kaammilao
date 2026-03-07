@@ -1,18 +1,109 @@
 {% extends 'base.html' %}
-{% block title %}My Applications{% endblock %}
+{% block title %}My Applications — KaamMilao{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-hero { background:var(--dark); padding:2.5rem 5%; background-image:radial-gradient(ellipse at 80% 50%, rgba(244,81,30,0.15) 0%, transparent 60%); }
+    .page-hero h1 { font-family:'Playfair Display',serif; font-size:2rem; color:white; margin-bottom:0.3rem; }
+    .page-hero p  { color:rgba(255,255,255,0.45); font-size:0.9rem; }
+    .app-list { padding:2rem 5%; display:grid; gap:1rem; max-width:900px; margin:0 auto; }
+    .app-card {
+        background:white; border-radius:14px;
+        border:1px solid var(--border);
+        overflow:hidden; transition:box-shadow 0.2s, transform 0.2s;
+    }
+    .app-card:hover { box-shadow:0 6px 20px rgba(0,0,0,0.08); transform:translateY(-2px); }
+
+    /* Clickable top section */
+    .app-card-top {
+        display:flex; align-items:center; justify-content:space-between;
+        gap:1rem; padding:1.2rem 1.5rem; text-decoration:none;
+        color:inherit; flex-wrap:wrap;
+    }
+    .app-card-top:hover .app-title { color:var(--orange); }
+    .app-title { font-weight:700; color:var(--dark); font-size:1rem; margin-bottom:0.3rem; transition:color 0.2s; }
+    .app-meta  { font-size:0.82rem; color:var(--muted); display:flex; gap:1rem; flex-wrap:wrap; }
+    .app-pay   { font-weight:700; color:#2E7D32; font-size:0.95rem; margin-top:0.3rem; }
+
+    /* Status section */
+    .app-card-footer {
+        padding:0.8rem 1.5rem; background:#FAFAFA;
+        border-top:1px solid var(--border);
+        display:flex; align-items:center; justify-content:space-between;
+        gap:1rem; flex-wrap:wrap;
+    }
+    .status-info { display:flex; align-items:center; gap:0.6rem; }
+    .status-label { font-size:0.78rem; color:var(--muted); }
+    .footer-actions { display:flex; gap:0.6rem; }
+    .btn-chat { padding:0.45rem 0.9rem; background:white; color:var(--dark); border:1.5px solid var(--border); border-radius:8px; font-size:0.82rem; font-weight:600; text-decoration:none; transition:all 0.2s; }
+    .btn-chat:hover { border-color:var(--orange); color:var(--orange); }
+    .btn-detail { padding:0.45rem 0.9rem; background:var(--cream); color:var(--muted); border:1.5px solid var(--border); border-radius:8px; font-size:0.82rem; font-weight:600; text-decoration:none; transition:all 0.2s; }
+    .btn-detail:hover { border-color:var(--dark); color:var(--dark); }
+
+    /* Status colors in footer */
+    .status-hired       { color:#1565C0; }
+    .status-shortlisted { color:var(--green); }
+    .status-rejected    { color:var(--red); }
+    .status-pending     { color:#E65100; }
+
+    .empty-state { text-align:center; padding:5rem 2rem; color:var(--muted); }
+    .empty-state .icon { font-size:3rem; margin-bottom:1rem; }
+    .empty-state h3 { color:var(--dark); margin-bottom:0.5rem; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container">
-    <h2 style="margin-bottom:1rem">My Applications</h2>
+<div class="page-hero">
+    <h1>My Applications 📋</h1>
+    <p>{{ applications|length }} application{{ applications|length|pluralize }} submitted</p>
+</div>
+
+<div class="app-list">
     {% for app in applications %}
-        <div class="card" style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center">
-            <div>
-                <strong>{{ app.job.title }}</strong>
-                <div style="font-size:0.85rem;color:var(--muted)">{{ app.job.city }} · ₹{{ app.job.pay_amount }}/{{ app.job.pay_type }}</div>
+    <div class="app-card">
+
+        <!-- Clickable top → job detail -->
+        <a href="{% url 'job_detail' app.job.id %}" class="app-card-top">
+            <div style="flex:1">
+                <div class="app-title">{{ app.job.title }}</div>
+                <div class="app-meta">
+                    <span>📍 {% if app.job.area %}{{ app.job.area }}, {% endif %}{{ app.job.city }}</span>
+                    <span>🗂 {{ app.job.get_category_display }}</span>
+                    <span>📅 Applied {{ app.applied_at|timesince }} ago</span>
+                </div>
+                <div class="app-pay">₹{{ app.job.pay_amount }} / {{ app.job.get_pay_type_display }}</div>
             </div>
             <span class="badge badge-{{ app.status }}">{{ app.status }}</span>
+        </a>
+
+        <!-- Footer with recruiter info + actions -->
+        <div class="app-card-footer">
+            <div class="status-info">
+                <span class="status-label">Posted by</span>
+                <a href="{% url 'view_profile' app.job.posted_by.id %}"
+                   style="font-weight:600;font-size:0.85rem;color:var(--dark);text-decoration:none">
+                    {{ app.job.posted_by.full_name|default:app.job.posted_by.phone }}
+                </a>
+            </div>
+            <div class="footer-actions">
+                <a href="{% url 'job_detail' app.job.id %}" class="btn-detail">View Job</a>
+                {% if app.job.posted_by %}
+                <a href="{% url 'start_chat' app.job.posted_by.id %}" class="btn-chat">💬 Message</a>
+                {% endif %}
+            </div>
         </div>
+
+    </div>
     {% empty %}
-        <p>You haven't applied to any jobs yet. <a href="{% url 'seeker_dashboard' %}">Browse Jobs</a></p>
+    <div class="empty-state">
+        <div class="icon">📭</div>
+        <h3>No applications yet</h3>
+        <p>Browse jobs and apply to get started!</p>
+        <a href="{% url 'seeker_dashboard' %}"
+           style="display:inline-block;margin-top:1.5rem;padding:0.8rem 2rem;background:var(--orange);color:white;border-radius:10px;text-decoration:none;font-weight:700">
+            Browse Jobs →
+        </a>
+    </div>
     {% endfor %}
 </div>
 {% endblock %}

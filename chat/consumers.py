@@ -66,7 +66,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'timestamp':    event['timestamp'],
         }))
 
-    # ── Database helpers ─────────────────────────────────
     @database_sync_to_async
     def get_messages(self):
         room = ChatRoom.objects.get(id=self.room_id)

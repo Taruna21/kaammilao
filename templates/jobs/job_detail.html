@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+{% block title %}{{ job.title }} — KaamMilao{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-wrap { max-width:740px; margin:2rem auto; padding:0 1.5rem; }
+    .back-link { display:inline-flex; align-items:center; gap:0.4rem; color:var(--muted); text-decoration:none; font-size:0.88rem; margin-bottom:1.5rem; }
+    .back-link:hover { color:var(--orange); }
+
+    /* Hero card */
+    .job-hero {
+        background:var(--dark); border-radius:20px; padding:2.5rem;
+        margin-bottom:1.2rem;
+        background-image:radial-gradient(ellipse at 80% 30%, rgba(244,81,30,0.2) 0%, transparent 60%);
+    }
+    .job-cat { display:inline-block; background:rgba(244,81,30,0.2); color:var(--orange); border-radius:20px; padding:0.25rem 0.9rem; font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.8rem; }
+    .job-title { font-family:'Playfair Display',serif; font-size:2rem; color:white; margin-bottom:0.6rem; }
+    .job-pay   { font-size:1.4rem; font-weight:700; color:#81C784; margin-bottom:1rem; }
+    .job-meta-row { display:flex; gap:1.5rem; flex-wrap:wrap; margin-bottom:1.5rem; }
+    .job-meta-item { color:rgba(255,255,255,0.55); font-size:0.88rem; display:flex; align-items:center; gap:0.4rem; }
+
+    /* Recruiter card */
+    .recruiter-card {
+        display:flex; align-items:center; gap:1rem;
+        background:rgba(255,255,255,0.07); border-radius:12px;
+        padding:1rem; border:1px solid rgba(255,255,255,0.1);
+        margin-top:1rem;
+    }
+    .rec-avatar { width:46px; height:46px; border-radius:50%; background:linear-gradient(135deg,var(--orange),#FF7043); display:flex; align-items:center; justify-content:center; color:white; font-weight:700; font-size:1.1rem; flex-shrink:0; overflow:hidden; text-decoration:none; }
+    .rec-avatar img { width:100%; height:100%; object-fit:cover; }
+    .rec-name { color:white; font-weight:700; font-size:0.95rem; text-decoration:none; }
+    .rec-name:hover { color:var(--orange); }
+    .rec-city { color:rgba(255,255,255,0.45); font-size:0.82rem; }
+    .rec-actions { margin-left:auto; display:flex; gap:0.6rem; }
+    .btn-msg { padding:0.5rem 1rem; background:rgba(255,255,255,0.1); color:white; border:1px solid rgba(255,255,255,0.2); border-radius:8px; font-size:0.82rem; font-weight:600; text-decoration:none; transition:all 0.2s; }
+    .btn-msg:hover { background:rgba(255,255,255,0.2); }
+    .btn-profile { padding:0.5rem 1rem; background:rgba(244,81,30,0.2); color:var(--orange); border:1px solid rgba(244,81,30,0.3); border-radius:8px; font-size:0.82rem; font-weight:600; text-decoration:none; transition:all 0.2s; }
+    .btn-profile:hover { background:rgba(244,81,30,0.3); }
+
+    /* Action buttons */
+    .action-bar { display:flex; gap:1rem; margin-bottom:1.2rem; flex-wrap:wrap; }
+    .apply-btn { flex:1; padding:1rem; background:var(--orange); color:white; border:none; border-radius:12px; font-size:1rem; font-weight:700; cursor:pointer; font-family:inherit; text-align:center; text-decoration:none; display:block; box-shadow:0 4px 12px rgba(244,81,30,0.3); transition:all 0.2s; }
+    .apply-btn:hover { background:#e8440f; transform:translateY(-1px); }
+    .apply-btn.applied { background:#E8F5E9; color:#2E7D32; border:1px solid #C8E6C9; cursor:default; box-shadow:none; }
+    .apply-btn.applied:hover { transform:none; }
+    .msg-btn { padding:1rem 1.5rem; background:white; color:var(--dark); border:2px solid var(--border); border-radius:12px; font-size:1rem; font-weight:700; cursor:pointer; font-family:inherit; text-decoration:none; text-align:center; transition:all 0.2s; }
+    .msg-btn:hover { border-color:var(--orange); color:var(--orange); }
+
+    /* Detail sections */
+    .section-card { background:white; border-radius:14px; border:1px solid var(--border); overflow:hidden; margin-bottom:1.2rem; }
+    .section-head { padding:1rem 1.5rem; border-bottom:1px solid var(--border); font-weight:700; color:var(--dark); font-size:0.95rem; }
+    .section-body { padding:1.2rem 1.5rem; }
+    .detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+    .detail-item label { font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); display:block; margin-bottom:0.3rem; }
+    .detail-item span  { font-size:0.95rem; color:var(--dark); font-weight:500; }
+    .job-desc { font-size:0.92rem; color:var(--text); line-height:1.7; white-space:pre-wrap; }
+    @media(max-width:600px) { .detail-grid { grid-template-columns:1fr; } .job-title { font-size:1.5rem; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-wrap">
+    <a href="{% url 'seeker_dashboard' %}" class="back-link">← Back to Jobs</a>
+
+    <!-- JOB HERO -->
+    <div class="job-hero">
+        <span class="job-cat">{{ job.get_category_display }}</span>
+        <div class="job-title">{{ job.title }}</div>
+        <div class="job-pay">₹{{ job.pay_amount }} / {{ job.get_pay_type_display }}</div>
+
+        <div class="job-meta-row">
+            <span class="job-meta-item">📍 {% if job.area %}{{ job.area }}, {% endif %}{{ job.city }}{% if job.pincode %} — {{ job.pincode }}{% endif %}</span>
+            <span class="job-meta-item">📅 Posted {{ job.created_at|timesince }} ago</span>
+            <span class="badge badge-{{ job.status }}" style="align-self:center">{{ job.status }}</span>
+        </div>
+
+        <!-- RECRUITER INFO -->
+        {% if job.posted_by %}
+        <div class="recruiter-card">
+            <a href="{% url 'view_profile' job.posted_by.id %}" class="rec-avatar">
+                {% if job.posted_by.photo %}
+                    <img src="{{ job.posted_by.photo.url }}">
+                {% else %}
+                    {{ job.posted_by.full_name|first|upper|default:"?" }}
+                {% endif %}
+            </a>
+            <div>
+                <a href="{% url 'view_profile' job.posted_by.id %}" class="rec-name">
+                    {{ job.posted_by.full_name|default:job.posted_by.phone }}
+                </a>
+                <div class="rec-city">{% if job.posted_by.city %}📍 {{ job.posted_by.city }}{% endif %}</div>
+            </div>
+            <div class="rec-actions">
+                <a href="{% url 'view_profile' job.posted_by.id %}" class="btn-profile">View Profile</a>
+                {% if user.role == 'seeker' %}
+                <a href="{% url 'start_chat' job.posted_by.id %}" class="btn-msg">💬 Message</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ACTION BUTTONS (seeker only) -->
+    {% if user.role == 'seeker' and job.status == 'open' %}
+    <div class="action-bar">
+        {% if already_applied %}
+            <span class="apply-btn applied">✅ Already Applied</span>
+        {% else %}
+            <a href="{% url 'apply_to_job' job.id %}" class="apply-btn">Apply for this Job →</a>
+        {% endif %}
+        {% if job.posted_by %}
+            <a href="{% url 'start_chat' job.posted_by.id %}" class="msg-btn">💬 Message Recruiter</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- JOB DETAILS -->
+    <div class="section-card">
+        <div class="section-head">Job Details</div>
+        <div class="section-body">
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <label>Category</label>
+                    <span>{{ job.get_category_display }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Pay</label>
+                    <span>₹{{ job.pay_amount }} {{ job.get_pay_type_display }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Location</label>
+                    <span>{% if job.area %}{{ job.area }}, {% endif %}{{ job.city }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Status</label>
+                    <span class="badge badge-{{ job.status }}">{{ job.status }}</span>
+                </div>
+                {% if job.pincode %}
+                <div class="detail-item">
+                    <label>Pincode</label>
+                    <span>{{ job.pincode }}</span>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                    <label>Posted</label>
+                    <span>{{ job.created_at|date:"d M Y" }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if job.description %}
+    <div class="section-card">
+        <div class="section-head">Description</div>
+        <div class="section-body">
+            <div class="job-desc">{{ job.description }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
