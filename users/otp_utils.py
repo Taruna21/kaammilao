@@ -1,5 +1,7 @@
 import random
 import logging
+import json
+import urllib.request
 from django.utils import timezone
 from django.conf import settings
 
@@ -16,33 +18,32 @@ def send_otp_sms(phone, otp):
 
 
 def _send_email(to_email, subject, body):
-    """Use SendGrid in production, Gmail locally."""
-    api_key = getattr(settings, 'SENDGRID_API_KEY', '')
+    api_key = getattr(settings, 'RESEND_API_KEY', '')
 
     if api_key:
-        # Production — SendGrid HTTP API
-        import urllib.request
-        import json
+        # Production — Resend HTTP API
         data = json.dumps({
-            "personalizations": [{"to": [{"email": to_email}]}],
-            "from": {"email": settings.DEFAULT_FROM_EMAIL or settings.EMAIL_HOST_USER},
+            "from":    "LocalServe <onboarding@resend.dev>",
+            "to":      [to_email],
             "subject": subject,
-            "content": [{"type": "text/plain", "value": body}]
+            "text":    body,
         }).encode('utf-8')
+
         req = urllib.request.Request(
-            'https://api.sendgrid.com/v3/mail/send',
+            'https://api.resend.com/emails',
             data=data,
             headers={
                 'Authorization': f'Bearer {api_key}',
-                'Content-Type': 'application/json',
+                'Content-Type':  'application/json',
             },
             method='POST'
         )
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
-                return resp.status == 202
+                logger.info(f"Resend email sent to {to_email}")
+                return resp.status == 200
         except Exception as e:
-            logger.error(f"SendGrid error: {e}")
+            logger.error(f"Resend error: {e}")
             return False
     else:
         # Local — Gmail SMTP
@@ -71,7 +72,7 @@ Your OTP for LocalServe signup is:
 
     {otp}
 
-Valid for 5 minutes. Do not share it with anyone.
+Valid for 5 minutes. Do not share with anyone.
 
 — LocalServe Team"""
     )

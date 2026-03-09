@@ -136,3 +136,6 @@ if not DEBUG:
 EMAIL_PORT     = 465
 EMAIL_USE_TLS  = False
 EMAIL_USE_SSL  = True
+
+# Resend
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
